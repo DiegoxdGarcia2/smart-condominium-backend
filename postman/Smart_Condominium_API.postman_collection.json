@@ -1,0 +1,664 @@
+{
+	"info": {
+		"_postman_id": "smart-condominium-api",
+		"name": "Smart Condominium API",
+		"description": "Colección completa para probar la API del Smart Condominium Backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Obtener Token JWT",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    pm.environment.set('access_token', responseJson.access);",
+									"    pm.environment.set('refresh_token', responseJson.refresh);",
+									"    pm.test('Token obtenido exitosamente', function () {",
+									"        pm.expect(responseJson).to.have.property('access');",
+									"        pm.expect(responseJson).to.have.property('refresh');",
+									"    });",
+									"} else {",
+									"    pm.test('Error al obtener token', function () {",
+									"        pm.expect.fail('No se pudo obtener el token');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"juan.perez@email.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/token/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"token",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Refrescar Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/token/refresh/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"token",
+								"refresh",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Administrador",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    pm.environment.set('admin_access_token', responseJson.access);",
+									"    pm.environment.set('admin_refresh_token', responseJson.refresh);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@smartcondo.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/token/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"token",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Roles",
+			"item": [
+				{
+					"name": "Listar Roles",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/roles/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"roles",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Rol",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Portero\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/administration/roles/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"roles",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Obtener Rol por ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/roles/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"roles",
+								"1",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Rol",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Portero Actualizado\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/administration/roles/5/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"roles",
+								"5",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Eliminar Rol",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/roles/5/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"roles",
+								"5",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Usuarios",
+			"item": [
+				{
+					"name": "Listar Usuarios",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/users/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"users",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Obtener Mi Perfil (/me)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/users/me/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"users",
+								"me",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Usuario",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"nuevo_usuario\",\n    \"email\": \"nuevo@ejemplo.com\",\n    \"password\": \"password123\",\n    \"first_name\": \"Nuevo\",\n    \"last_name\": \"Usuario\",\n    \"phone_number\": \"+52-555-9999\",\n    \"role\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/administration/users/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"users",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Obtener Usuario por ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/users/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"users",
+								"1",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Usuario",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Nombre Actualizado\",\n    \"phone_number\": \"+52-555-8888\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/administration/users/2/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"users",
+								"2",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Unidades Residenciales",
+			"item": [
+				{
+					"name": "Listar Unidades",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/residential-units/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"residential-units",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Unidad",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"unit_number\": \"C-301\",\n    \"type\": \"Departamento\",\n    \"floor\": 3,\n    \"owner\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/administration/residential-units/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"residential-units",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Asignar Propietario a Unidad",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"owner\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/administration/residential-units/2/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"residential-units",
+								"2",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Obtener Unidad por ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/residential-units/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"residential-units",
+								"1",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Pruebas de Seguridad",
+			"item": [
+				{
+					"name": "Acceso Sin Token (Debe fallar)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/administration/users/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"users",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Token Inválido (Debe fallar)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer token_invalido"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/administration/users/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"administration",
+								"users",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Credenciales Incorrectas",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"usuario@inexistente.com\",\n    \"password\": \"password_incorrecto\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/token/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"token",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"type": "string"
+		}
+	]
+}
