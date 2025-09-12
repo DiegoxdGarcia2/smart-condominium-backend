@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal
-from administration.models import Role, ResidentialUnit, Announcement, FinancialFee
+from administration.models import Role, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation
 
 User = get_user_model()
 
@@ -256,6 +256,100 @@ class Command(BaseCommand):
         self.stdout.write(
             '- Guardia: carlos.seguridad@email.com / password123'
         )
+        
+        # Crear áreas comunes
+        self.stdout.write('\n=== CREANDO ÁREAS COMUNES ===')
+        
+        common_areas_data = [
+            {
+                'name': 'Salón de Eventos',
+                'description': 'Amplio salón para celebraciones y eventos sociales con capacidad para 50 personas',
+                'capacity': 50,
+                'booking_price': Decimal('300.00')
+            },
+            {
+                'name': 'Piscina',
+                'description': 'Piscina comunitaria con área recreativa',
+                'capacity': 30,
+                'booking_price': Decimal('150.00')
+            },
+            {
+                'name': 'Cancha de Tenis',
+                'description': 'Cancha de tenis profesional iluminada',
+                'capacity': 4,
+                'booking_price': Decimal('100.00')
+            },
+            {
+                'name': 'Gimnasio',
+                'description': 'Gimnasio equipado con máquinas de ejercicio',
+                'capacity': 15,
+                'booking_price': Decimal('50.00')
+            },
+            {
+                'name': 'Terraza BBQ',
+                'description': 'Terraza con parrillas y mesas para asados familiares',
+                'capacity': 20,
+                'booking_price': Decimal('120.00')
+            }
+        ]
+        
+        for area_data in common_areas_data:
+            area, created = CommonArea.objects.get_or_create(
+                name=area_data['name'],
+                defaults=area_data
+            )
+            if created:
+                self.stdout.write(f'✓ Área común creada: {area.name} (${area.booking_price})')
+            else:
+                self.stdout.write(f'- Área común ya existe: {area.name}')
+        
+        # Crear algunas reservas de ejemplo
+        self.stdout.write('\n=== CREANDO RESERVAS DE EJEMPLO ===')
+        
+        # Obtener usuarios y áreas para las reservas
+        juan = User.objects.filter(email='juan.perez@email.com').first()
+        ana = User.objects.filter(email='ana.garcia@email.com').first()
+        salon = CommonArea.objects.filter(name='Salón de Eventos').first()
+        piscina = CommonArea.objects.filter(name='Piscina').first()
+        
+        if juan and ana and salon and piscina:
+            reservations_data = [
+                {
+                    'common_area': salon,
+                    'resident': juan,
+                    'start_time': timezone.now() + timedelta(days=7, hours=18),
+                    'end_time': timezone.now() + timedelta(days=7, hours=23),
+                    'status': 'Confirmada',
+                    'total_paid': salon.booking_price
+                },
+                {
+                    'common_area': piscina,
+                    'resident': ana,
+                    'start_time': timezone.now() + timedelta(days=3, hours=10),
+                    'end_time': timezone.now() + timedelta(days=3, hours=14),
+                    'status': 'Pendiente',
+                    'total_paid': piscina.booking_price
+                }
+            ]
+            
+            for reservation_data in reservations_data:
+                reservation, created = Reservation.objects.get_or_create(
+                    common_area=reservation_data['common_area'],
+                    resident=reservation_data['resident'],
+                    start_time=reservation_data['start_time'],
+                    defaults=reservation_data
+                )
+                if created:
+                    self.stdout.write(
+                        f'✓ Reserva creada: {reservation.common_area.name} - '
+                        f'{reservation.resident.get_full_name()} ({reservation.status})'
+                    )
+                else:
+                    self.stdout.write(
+                        f'- Reserva ya existe: {reservation.common_area.name} - '
+                        f'{reservation.resident.get_full_name()}'
+                    )
+        
         self.stdout.write(
             '\nNuevas funcionalidades disponibles:'
         )
@@ -264,4 +358,10 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             '💰 Cuotas Financieras: /api/administration/financial-fees/'
+        )
+        self.stdout.write(
+            '🏊 Áreas Comunes: /api/administration/common-areas/'
+        )
+        self.stdout.write(
+            '📅 Reservas: /api/administration/reservations/'
         )

@@ -120,3 +120,66 @@ class FinancialFee(models.Model):
         
     def __str__(self):
         return f"{self.description} - {self.unit.unit_number} - ${self.amount}"
+
+
+class CommonArea(models.Model):
+    """Modelo para las áreas comunes del condominio"""
+    name = models.CharField(max_length=100, verbose_name="Nombre del área")
+    description = models.TextField(blank=True, verbose_name="Descripción")
+    capacity = models.PositiveIntegerField(verbose_name="Capacidad de personas")
+    booking_price = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        verbose_name="Precio por reserva"
+    )
+    
+    class Meta:
+        verbose_name = "Área Común"
+        verbose_name_plural = "Áreas Comunes"
+        ordering = ['name']
+        
+    def __str__(self):
+        return f"{self.name} (Cap: {self.capacity})"
+
+
+class Reservation(models.Model):
+    """Modelo para las reservas de áreas comunes"""
+    
+    STATUS_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('Confirmada', 'Confirmada'),
+        ('Cancelada', 'Cancelada'),
+    ]
+    
+    common_area = models.ForeignKey(
+        CommonArea,
+        on_delete=models.CASCADE,
+        verbose_name="Área común"
+    )
+    resident = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name="Residente"
+    )
+    start_time = models.DateTimeField(verbose_name="Fecha y hora de inicio")
+    end_time = models.DateTimeField(verbose_name="Fecha y hora de fin")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='Pendiente',
+        verbose_name="Estado"
+    )
+    total_paid = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Monto pagado"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    
+    class Meta:
+        verbose_name = "Reserva"
+        verbose_name_plural = "Reservas"
+        ordering = ['-start_time']
+        
+    def __str__(self):
+        return f"{self.common_area.name} - {self.resident.get_full_name()} ({self.start_time.strftime('%d/%m/%Y %H:%M')})"

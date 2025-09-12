@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Role, User, ResidentialUnit, Announcement, FinancialFee
+from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -92,5 +92,29 @@ class FinancialFeeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'unit', 'unit_number', 'unit_owner', 'description', 
             'amount', 'due_date', 'status', 'created_at'
+        ]
+        read_only_fields = ['created_at']
+
+
+class CommonAreaSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo CommonArea"""
+    
+    class Meta:
+        model = CommonArea
+        fields = ['id', 'name', 'description', 'capacity', 'booking_price']
+
+
+class ReservationSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo Reservation"""
+    common_area_name = serializers.CharField(source='common_area.name', read_only=True)
+    resident_name = serializers.CharField(source='resident.get_full_name', read_only=True)
+    resident_email = serializers.CharField(source='resident.email', read_only=True)
+    
+    class Meta:
+        model = Reservation
+        fields = [
+            'id', 'common_area', 'common_area_name', 'resident', 
+            'resident_name', 'resident_email', 'start_time', 'end_time', 
+            'status', 'total_paid', 'created_at'
         ]
         read_only_fields = ['created_at']
