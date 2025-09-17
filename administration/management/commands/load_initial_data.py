@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal
-from administration.models import Role, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation
+from administration.models import Role, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog
 
 User = get_user_model()
 
@@ -364,4 +364,185 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             '📅 Reservas: /api/administration/reservations/'
+        )
+        
+        # NUEVOS DATOS DE LA FASE 4: VEHÍCULOS, MASCOTAS Y VISITANTES
+        self.stdout.write('\n=== CREANDO VEHÍCULOS DE EJEMPLO ===')
+        
+        vehicles_data = [
+            {
+                'resident': juan,
+                'license_plate': 'ABC-123',
+                'brand': 'Toyota',
+                'model': 'Corolla',
+                'color': 'Blanco'
+            },
+            {
+                'resident': juan,
+                'license_plate': 'DEF-456',
+                'brand': 'Honda',
+                'model': 'Civic',
+                'color': 'Gris'
+            },
+            {
+                'resident': ana,
+                'license_plate': 'GHI-789',
+                'brand': 'Nissan',
+                'model': 'Sentra',
+                'color': 'Azul'
+            },
+            {
+                'resident': ana,
+                'license_plate': 'JKL-012',
+                'brand': 'Mazda',
+                'model': 'CX-5',
+                'color': 'Rojo'
+            }
+        ]
+        
+        if juan and ana:
+            for vehicle_data in vehicles_data:
+                vehicle, created = Vehicle.objects.get_or_create(
+                    license_plate=vehicle_data['license_plate'],
+                    defaults=vehicle_data
+                )
+                if created:
+                    self.stdout.write(
+                        f'✓ Vehículo creado: {vehicle.license_plate} - '
+                        f'{vehicle.brand} {vehicle.model} ({vehicle.resident.get_full_name()})'
+                    )
+                else:
+                    self.stdout.write(f'- Vehículo ya existe: {vehicle.license_plate}')
+        
+        # Crear mascotas de ejemplo
+        self.stdout.write('\n=== CREANDO MASCOTAS DE EJEMPLO ===')
+        
+        pets_data = [
+            {
+                'resident': juan,
+                'name': 'Buddy',
+                'species': 'Perro',
+                'breed': 'Labrador',
+                'age': 3
+            },
+            {
+                'resident': juan,
+                'name': 'Miau',
+                'species': 'Gato',
+                'breed': 'Persa',
+                'age': 2
+            },
+            {
+                'resident': ana,
+                'name': 'Rocky',
+                'species': 'Perro',
+                'breed': 'Pastor Alemán',
+                'age': 5
+            },
+            {
+                'resident': ana,
+                'name': 'Luna',
+                'species': 'Gato',
+                'breed': 'Siames',
+                'age': 1
+            }
+        ]
+        
+        if juan and ana:
+            for pet_data in pets_data:
+                pet, created = Pet.objects.get_or_create(
+                    resident=pet_data['resident'],
+                    name=pet_data['name'],
+                    defaults=pet_data
+                )
+                if created:
+                    self.stdout.write(
+                        f'✓ Mascota creada: {pet.name} ({pet.species} - {pet.breed}) - '
+                        f'Propietario: {pet.resident.get_full_name()}'
+                    )
+                else:
+                    self.stdout.write(f'- Mascota ya existe: {pet.name}')
+        
+        # Crear registros de visitantes de ejemplo
+        self.stdout.write('\n=== CREANDO REGISTROS DE VISITANTES ===')
+        
+        visitor_logs_data = [
+            {
+                'visitor_name': 'María Rodríguez',
+                'visitor_dni': '12345678',
+                'resident': juan,
+                'entry_time': timezone.now() - timedelta(hours=2),
+                'exit_time': None,  # Visitante activo
+                'vehicle_license_plate': 'VIS-001',
+                'observations': 'Visita familiar'
+            },
+            {
+                'visitor_name': 'Carlos Mendoza',
+                'visitor_dni': '87654321',
+                'resident': ana,
+                'entry_time': timezone.now() - timedelta(hours=4),
+                'exit_time': timezone.now() - timedelta(hours=1),  # Ya salió
+                'vehicle_license_plate': 'VIS-002',
+                'observations': 'Técnico de mantenimiento'
+            },
+            {
+                'visitor_name': 'Laura Jiménez',
+                'visitor_dni': '11223344',
+                'resident': juan,
+                'entry_time': timezone.now() - timedelta(days=1, hours=3),
+                'exit_time': timezone.now() - timedelta(days=1, hours=1),
+                'vehicle_license_plate': None,
+                'observations': 'Visita social'
+            },
+            {
+                'visitor_name': 'Pedro Gómez',
+                'visitor_dni': '55667788',
+                'resident': ana,
+                'entry_time': timezone.now() - timedelta(minutes=30),
+                'exit_time': None,  # Visitante activo
+                'vehicle_license_plate': None,
+                'observations': 'Entrega de paquete'
+            }
+        ]
+        
+        if juan and ana:
+            for visitor_data in visitor_logs_data:
+                visitor_log, created = VisitorLog.objects.get_or_create(
+                    visitor_dni=visitor_data['visitor_dni'],
+                    resident=visitor_data['resident'],
+                    entry_time=visitor_data['entry_time'],
+                    defaults=visitor_data
+                )
+                if created:
+                    status = "Activo" if not visitor_data['exit_time'] else "Salió"
+                    self.stdout.write(
+                        f'✓ Registro creado: {visitor_log.visitor_name} visitando a '
+                        f'{visitor_log.resident.get_full_name()} - {status}'
+                    )
+                else:
+                    self.stdout.write(f'- Registro ya existe: {visitor_data["visitor_name"]}')
+        
+        self.stdout.write(
+            '\n🎉 ¡FASE 4 COMPLETADA! Nuevos endpoints disponibles:'
+        )
+        self.stdout.write(
+            '🚗 Vehículos: /api/administration/vehicles/'
+        )
+        self.stdout.write(
+            '🐕 Mascotas: /api/administration/pets/'
+        )
+        self.stdout.write(
+            '👥 Visitantes: /api/administration/visitor-logs/'
+        )
+        self.stdout.write(
+            '\n📊 Endpoints especiales de visitantes:'
+        )
+        self.stdout.write(
+            '  - Visitantes activos: /api/administration/visitor-logs/active_visitors/'
+        )
+        self.stdout.write(
+            '  - Reporte diario: /api/administration/visitor-logs/daily_report/'
+        )
+        self.stdout.write(
+            '  - Registrar salida: POST /api/administration/visitor-logs/{id}/register_exit/'
         )

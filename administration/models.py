@@ -183,3 +183,123 @@ class Reservation(models.Model):
         
     def __str__(self):
         return f"{self.common_area.name} - {self.resident.get_full_name()} ({self.start_time.strftime('%d/%m/%Y %H:%M')})"
+
+
+class Vehicle(models.Model):
+    """Modelo para los vehículos de los residentes"""
+    resident = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        verbose_name="Propietario",
+        related_name="vehicles"
+    )
+    license_plate = models.CharField(
+        max_length=10, 
+        unique=True, 
+        verbose_name="Placa del vehículo"
+    )
+    brand = models.CharField(max_length=50, verbose_name="Marca")
+    model = models.CharField(max_length=50, verbose_name="Modelo")
+    color = models.CharField(max_length=30, verbose_name="Color")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de registro")
+    
+    class Meta:
+        verbose_name = "Vehículo"
+        verbose_name_plural = "Vehículos"
+        ordering = ['license_plate']
+        
+    def __str__(self):
+        return f"{self.license_plate} - {self.brand} {self.model} ({self.resident.get_full_name()})"
+
+
+class Pet(models.Model):
+    """Modelo para las mascotas de los residentes"""
+    
+    SPECIES_CHOICES = [
+        ('Perro', 'Perro'),
+        ('Gato', 'Gato'),
+        ('Ave', 'Ave'),
+        ('Pez', 'Pez'),
+        ('Otro', 'Otro'),
+    ]
+    
+    resident = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        verbose_name="Propietario",
+        related_name="pets"
+    )
+    name = models.CharField(max_length=50, verbose_name="Nombre de la mascota")
+    species = models.CharField(
+        max_length=20, 
+        choices=SPECIES_CHOICES,
+        verbose_name="Especie"
+    )
+    breed = models.CharField(max_length=50, verbose_name="Raza")
+    age = models.PositiveIntegerField(null=True, blank=True, verbose_name="Edad (años)")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de registro")
+    
+    class Meta:
+        verbose_name = "Mascota"
+        verbose_name_plural = "Mascotas"
+        ordering = ['name']
+        
+    def __str__(self):
+        return f"{self.name} ({self.species}) - {self.resident.get_full_name()}"
+
+
+class VisitorLog(models.Model):
+    """Modelo para el registro de visitantes del condominio"""
+    
+    STATUS_CHOICES = [
+        ('Activo', 'Activo'),  # Visitante dentro del condominio
+        ('Salió', 'Salió'),   # Visitante que ya salió
+    ]
+    
+    visitor_name = models.CharField(max_length=100, verbose_name="Nombre del visitante")
+    visitor_dni = models.CharField(max_length=20, verbose_name="DNI/Identificación")
+    resident = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        verbose_name="Residente visitado",
+        related_name="visitor_logs"
+    )
+    entry_time = models.DateTimeField(auto_now_add=True, verbose_name="Hora de entrada")
+    exit_time = models.DateTimeField(
+        null=True, 
+        blank=True, 
+        verbose_name="Hora de salida"
+    )
+    vehicle_license_plate = models.CharField(
+        max_length=10, 
+        null=True, 
+        blank=True, 
+        verbose_name="Placa del vehículo"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='Activo',
+        verbose_name="Estado"
+    )
+    observations = models.TextField(
+        blank=True, 
+        verbose_name="Observaciones"
+    )
+    
+    class Meta:
+        verbose_name = "Registro de Visitante"
+        verbose_name_plural = "Registros de Visitantes"
+        ordering = ['-entry_time']
+        
+    def __str__(self):
+        status = "Activo" if not self.exit_time else "Salió"
+        return f"{self.visitor_name} visitando a {self.resident.get_full_name()} - {status}"
+    
+    def save(self, *args, **kwargs):
+        # Auto actualizar el status basado en exit_time
+        if self.exit_time:
+            self.status = 'Salió'
+        else:
+            self.status = 'Activo'
+        super().save(*args, **kwargs)

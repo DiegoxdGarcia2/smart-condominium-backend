@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation
+from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -118,3 +118,86 @@ class ReservationSerializer(serializers.ModelSerializer):
             'status', 'total_paid', 'created_at'
         ]
         read_only_fields = ['created_at']
+
+
+class VehicleSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo Vehicle"""
+    resident_name = serializers.CharField(source='resident.get_full_name', read_only=True)
+    resident_email = serializers.CharField(source='resident.email', read_only=True)
+    unit_number = serializers.CharField(source='resident.residentialunit_set.first.unit_number', read_only=True)
+    
+    class Meta:
+        model = Vehicle
+        fields = [
+            'id', 'resident', 'resident_name', 'resident_email', 'unit_number',
+            'license_plate', 'brand', 'model', 'color', 'created_at'
+        ]
+        read_only_fields = ['created_at', 'resident']
+    
+    def validate_license_plate(self, value):
+        """Validar formato de placa"""
+        if len(value) < 6:
+            raise serializers.ValidationError("La placa debe tener al menos 6 caracteres.")
+        return value.upper()
+
+
+class PetSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo Pet"""
+    resident_name = serializers.CharField(source='resident.get_full_name', read_only=True)
+    resident_email = serializers.CharField(source='resident.email', read_only=True)
+    unit_number = serializers.CharField(source='resident.residentialunit_set.first.unit_number', read_only=True)
+    
+    class Meta:
+        model = Pet
+        fields = [
+            'id', 'resident', 'resident_name', 'resident_email', 'unit_number',
+            'name', 'species', 'breed', 'age', 'created_at'
+        ]
+        read_only_fields = ['created_at', 'resident']
+    
+    def validate_age(self, value):
+        """Validar que la edad sea razonable"""
+        if value is not None and (value < 0 or value > 30):
+            raise serializers.ValidationError("La edad debe estar entre 0 y 30 años.")
+        return value
+
+
+class VisitorLogSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo VisitorLog"""
+    resident_name = serializers.CharField(source='resident.get_full_name', read_only=True)
+    resident_email = serializers.CharField(source='resident.email', read_only=True)
+    unit_number = serializers.CharField(source='resident.residentialunit_set.first.unit_number', read_only=True)
+    duration_minutes = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = VisitorLog
+        fields = [
+            'id', 'visitor_name', 'visitor_dni', 'resident', 'resident_name', 
+            'resident_email', 'unit_number', 'entry_time', 'exit_time', 
+            'vehicle_license_plate', 'status', 'observations', 'duration_minutes'
+        ]
+        read_only_fields = ['entry_time', 'status']
+    
+    def get_duration_minutes(self, obj):
+        """Calcular duración de la visita en minutos"""
+        if obj.exit_time and obj.entry_time:
+            delta = obj.exit_time - obj.entry_time
+            return round(delta.total_seconds() / 60)
+        return None
+    
+    def validate_visitor_dni(self, value):
+        """Validar formato básico del DNI"""
+        if len(value) < 7:
+            raise serializers.ValidationError("El DNI debe tener al menos 7 caracteres.")
+        return value
+    
+    def validate(self, data):
+        """Validar que exit_time sea posterior a entry_time si se proporciona"""
+        exit_time = data.get('exit_time')
+        if exit_time and hasattr(self, 'instance') and self.instance:
+            entry_time = self.instance.entry_time
+            if exit_time <= entry_time:
+                raise serializers.ValidationError(
+                    "La hora de salida debe ser posterior a la hora de entrada."
+                )
+        return data
