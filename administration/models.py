@@ -303,3 +303,166 @@ class VisitorLog(models.Model):
         else:
             self.status = 'Activo'
         super().save(*args, **kwargs)
+
+
+class Task(models.Model):
+    """Modelo para el sistema de gestión de tareas"""
+    
+    STATUS_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('En Progreso', 'En Progreso'),
+        ('Completada', 'Completada'),
+        ('Cancelada', 'Cancelada'),
+    ]
+    
+    title = models.CharField(max_length=200, verbose_name="Título de la tarea")
+    description = models.TextField(verbose_name="Descripción de la tarea")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='Pendiente',
+        verbose_name="Estado de la tarea"
+    )
+    assigned_to = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='assigned_tasks',
+        verbose_name="Asignado a"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='created_tasks',
+        verbose_name="Creado por"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de completado")
+    
+    class Meta:
+        verbose_name = "Tarea"
+        verbose_name_plural = "Tareas"
+        ordering = ['-created_at']
+        
+    def __str__(self):
+        return f"{self.title} - {self.status}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-asignar completed_at cuando se marca como completada
+        if self.status == 'Completada' and not self.completed_at:
+            from django.utils import timezone
+            self.completed_at = timezone.now()
+        elif self.status != 'Completada':
+            self.completed_at = None
+        super().save(*args, **kwargs)
+
+
+class Feedback(models.Model):
+    """Modelo para el sistema de feedback de residentes"""
+    
+    STATUS_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('En Revisión', 'En Revisión'),
+        ('Respondido', 'Respondido'),
+        ('Cerrado', 'Cerrado'),
+    ]
+    
+    subject = models.CharField(max_length=200, verbose_name="Asunto")
+    message = models.TextField(verbose_name="Mensaje")
+    resident = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='feedbacks',
+        verbose_name="Residente"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='Pendiente',
+        verbose_name="Estado"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
+    
+    class Meta:
+        verbose_name = "Feedback"
+        verbose_name_plural = "Feedbacks"
+        ordering = ['-created_at']
+        
+    def __str__(self):
+        return f"Feedback de {self.resident.get_full_name()}: {self.subject}"
+
+
+class PaymentTransaction(models.Model):
+    """Modelo para el gateway de pagos y transacciones financieras"""
+    
+    STATUS_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('Procesando', 'Procesando'),
+        ('Completado', 'Completado'),
+        ('Fallido', 'Fallido'),
+        ('Cancelado', 'Cancelado'),
+    ]
+    
+    financial_fee = models.ForeignKey(
+        FinancialFee,
+        on_delete=models.CASCADE,
+        related_name='payment_transactions',
+        verbose_name="Cuota financiera"
+    )
+    resident = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='payment_transactions',
+        verbose_name="Residente"
+    )
+    transaction_id = models.CharField(
+        max_length=100,
+        unique=True,
+        verbose_name="ID de transacción"
+    )
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Monto"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='Pendiente',
+        verbose_name="Estado del pago"
+    )
+    payment_method = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name="Método de pago"
+    )
+    gateway_response = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Respuesta del gateway"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    processed_at = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de procesamiento")
+    
+    class Meta:
+        verbose_name = "Transacción de Pago"
+        verbose_name_plural = "Transacciones de Pago"
+        ordering = ['-created_at']
+        
+    def __str__(self):
+        return f"Pago de {self.resident.get_full_name()} - {self.amount} - {self.status}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-generar transaction_id si no existe
+        if not self.transaction_id:
+            import uuid
+            self.transaction_id = f"TXN_{uuid.uuid4().hex[:12].upper()}"
+        
+        # Auto-asignar processed_at cuando se completa o falla
+        if self.status in ['Completado', 'Fallido'] and not self.processed_at:
+            from django.utils import timezone
+            self.processed_at = timezone.now()
+        elif self.status not in ['Completado', 'Fallido']:
+            self.processed_at = None
+            
+        super().save(*args, **kwargs)

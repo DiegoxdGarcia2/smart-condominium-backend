@@ -3,11 +3,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
-from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog
+from django.utils import timezone
+from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog, Task, Feedback, PaymentTransaction
 from .serializers import (
     RoleSerializer, UserSerializer, ResidentialUnitSerializer, 
     AnnouncementSerializer, FinancialFeeSerializer, CommonAreaSerializer, 
-    ReservationSerializer, VehicleSerializer, PetSerializer, VisitorLogSerializer
+    ReservationSerializer, VehicleSerializer, PetSerializer, VisitorLogSerializer,
+    TaskSerializer, FeedbackSerializer, PaymentTransactionSerializer
 )
 
 
@@ -342,4 +344,300 @@ class VisitorLogViewSet(viewsets.ModelViewSet):
                 'visitors_left': visitors_left
             },
             'visitors': serializer.data
+        })
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar el sistema de tareas"""
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filtrar tareas según el rol del usuario"""
+        user = self.request.user
+        
+        # Administradores ven todas las tareas
+        if user.is_superuser or (user.role and user.role.name == 'Administrador'):
+            return Task.objects.select_related('assigned_to', 'created_by').order_by('-created_at')
+        
+        # Usuarios normales solo ven tareas asignadas a ellos o creadas por ellos
+        return Task.objects.select_related('assigned_to', 'created_by').filter(
+            Q(assigned_to=user) | Q(created_by=user)
+        ).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        """Asignar automáticamente el usuario actual como created_by"""
+        serializer.save(created_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def my_tasks(self, request):
+        """Obtener todas las tareas asignadas al usuario actual"""
+        user = request.user
+        tasks = Task.objects.select_related('created_by').filter(assigned_to=user)
+        serializer = self.get_serializer(tasks, many=True)
+        
+        # Estadísticas de tareas del usuario
+        pending = tasks.filter(status='Pendiente').count()
+        in_progress = tasks.filter(status='En Progreso').count()
+        completed = tasks.filter(status='Completada').count()
+        
+        return Response({
+            'statistics': {
+                'pending': pending,
+                'in_progress': in_progress,
+                'completed': completed,
+                'total': tasks.count()
+            },
+            'tasks': serializer.data
+        })
+    
+    @action(detail=True, methods=['patch'])
+    def update_status(self, request, pk=None):
+        """Actualizar solo el estado de una tarea"""
+        task = self.get_object()
+        new_status = request.data.get('status')
+        
+        if not new_status:
+            return Response(
+                {'error': 'El campo status es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validar que el status es válido
+        valid_statuses = [choice[0] for choice in Task.STATUS_CHOICES]
+        if new_status not in valid_statuses:
+            return Response(
+                {'error': f'Estado inválido. Opciones válidas: {valid_statuses}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        task.status = new_status
+        task.save()
+        
+        serializer = self.get_serializer(task)
+        return Response(serializer.data)
+
+
+class FeedbackViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar el sistema de feedback"""
+    queryset = Feedback.objects.all()
+    serializer_class = FeedbackSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filtrar feedback según el rol del usuario"""
+        user = self.request.user
+        
+        # Administradores ven todos los feedbacks
+        if user.is_superuser or (user.role and user.role.name == 'Administrador'):
+            return Feedback.objects.select_related('resident').order_by('-created_at')
+        
+        # Usuarios normales solo ven sus propios feedbacks
+        return Feedback.objects.filter(resident=user).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        """Asignar automáticamente el usuario actual como resident"""
+        serializer.save(resident=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def my_feedback(self, request):
+        """Obtener todos los feedbacks del usuario actual"""
+        user = request.user
+        feedbacks = Feedback.objects.filter(resident=user).order_by('-created_at')
+        serializer = self.get_serializer(feedbacks, many=True)
+        
+        # Estadísticas de feedback del usuario
+        pending = feedbacks.filter(status='Pendiente').count()
+        in_review = feedbacks.filter(status='En Revisión').count()
+        responded = feedbacks.filter(status='Respondido').count()
+        closed = feedbacks.filter(status='Cerrado').count()
+        
+        return Response({
+            'statistics': {
+                'pending': pending,
+                'in_review': in_review,
+                'responded': responded,
+                'closed': closed,
+                'total': feedbacks.count()
+            },
+            'feedbacks': serializer.data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def admin_dashboard(self, request):
+        """Dashboard de administración para feedback (solo admins)"""
+        user = request.user
+        
+        # Verificar permisos de administrador
+        if not (user.is_superuser or (user.role and user.role.name == 'Administrador')):
+            return Response(
+                {'error': 'No tienes permisos para acceder a este endpoint'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Obtener estadísticas generales
+        all_feedbacks = Feedback.objects.all()
+        pending = all_feedbacks.filter(status='Pendiente').count()
+        in_review = all_feedbacks.filter(status='En Revisión').count()
+        responded = all_feedbacks.filter(status='Respondido').count()
+        closed = all_feedbacks.filter(status='Cerrado').count()
+        
+        # Feedbacks más recientes pendientes
+        recent_pending = Feedback.objects.select_related('resident').filter(
+            status='Pendiente'
+        ).order_by('-created_at')[:5]
+        
+        recent_serializer = self.get_serializer(recent_pending, many=True)
+        
+        return Response({
+            'statistics': {
+                'pending': pending,
+                'in_review': in_review,
+                'responded': responded,
+                'closed': closed,
+                'total': all_feedbacks.count()
+            },
+            'recent_pending': recent_serializer.data
+        })
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar transacciones de pago"""
+    queryset = PaymentTransaction.objects.all()
+    serializer_class = PaymentTransactionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filtrar transacciones según el rol del usuario"""
+        user = self.request.user
+        
+        # Administradores ven todas las transacciones
+        if user.is_superuser or (user.role and user.role.name == 'Administrador'):
+            return PaymentTransaction.objects.select_related(
+                'resident', 'financial_fee'
+            ).order_by('-created_at')
+        
+        # Usuarios normales solo ven sus propias transacciones
+        return PaymentTransaction.objects.select_related(
+            'financial_fee'
+        ).filter(resident=user).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        """Asignar automáticamente el usuario actual como resident"""
+        serializer.save(resident=self.request.user)
+    
+    @action(detail=False, methods=['post'])
+    def initiate_payment(self, request):
+        """Iniciar un nuevo proceso de pago"""
+        financial_fee_id = request.data.get('financial_fee_id')
+        
+        if not financial_fee_id:
+            return Response(
+                {'error': 'financial_fee_id es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            financial_fee = FinancialFee.objects.get(id=financial_fee_id)
+        except FinancialFee.DoesNotExist:
+            return Response(
+                {'error': 'Cuota financiera no encontrada'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verificar si ya existe una transacción pendiente para esta cuota
+        existing_transaction = PaymentTransaction.objects.filter(
+            financial_fee=financial_fee,
+            resident=request.user,
+            status__in=['Pendiente', 'Procesando']
+        ).first()
+        
+        if existing_transaction:
+            return Response(
+                {'error': 'Ya existe una transacción pendiente para esta cuota'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Crear nueva transacción
+        transaction = PaymentTransaction.objects.create(
+            financial_fee=financial_fee,
+            resident=request.user,
+            amount=financial_fee.amount,
+            status='Pendiente'
+        )
+        
+        serializer = self.get_serializer(transaction)
+        return Response({
+            'message': 'Transacción iniciada exitosamente',
+            'transaction': serializer.data
+        }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['post'], permission_classes=[])
+    def payment_webhook(self, request):
+        """Webhook para recibir notificaciones del gateway de pago"""
+        transaction_id = request.data.get('transaction_id')
+        new_status = request.data.get('status')
+        gateway_response = request.data.get('gateway_response', {})
+        
+        if not transaction_id or not new_status:
+            return Response(
+                {'error': 'transaction_id y status son requeridos'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            transaction = PaymentTransaction.objects.get(transaction_id=transaction_id)
+        except PaymentTransaction.DoesNotExist:
+            return Response(
+                {'error': 'Transacción no encontrada'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validar estados válidos para webhook
+        valid_webhook_statuses = ['Completado', 'Fallido', 'Cancelado']
+        if new_status not in valid_webhook_statuses:
+            return Response(
+                {'error': f'Estado inválido para webhook. Válidos: {valid_webhook_statuses}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Actualizar transacción
+        transaction.status = new_status
+        transaction.gateway_response = gateway_response
+        if new_status in ['Completado', 'Fallido']:
+            transaction.processed_at = timezone.now()
+        transaction.save()
+        
+        return Response({
+            'message': 'Webhook procesado exitosamente',
+            'transaction_id': transaction_id,
+            'new_status': new_status
+        })
+    
+    @action(detail=False, methods=['get'])
+    def my_payments(self, request):
+        """Obtener todas las transacciones del usuario actual"""
+        user = request.user
+        transactions = PaymentTransaction.objects.select_related(
+            'financial_fee'
+        ).filter(resident=user).order_by('-created_at')
+        
+        serializer = self.get_serializer(transactions, many=True)
+        
+        # Estadísticas de pagos del usuario
+        pending = transactions.filter(status='Pendiente').count()
+        processing = transactions.filter(status='Procesando').count()
+        completed = transactions.filter(status='Completado').count()
+        failed = transactions.filter(status='Fallido').count()
+        
+        return Response({
+            'statistics': {
+                'pending': pending,
+                'processing': processing,
+                'completed': completed,
+                'failed': failed,
+                'total': transactions.count()
+            },
+            'transactions': serializer.data
         })

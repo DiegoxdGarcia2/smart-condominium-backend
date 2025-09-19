@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog
+from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog, Task, Feedback, PaymentTransaction
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -200,4 +200,96 @@ class VisitorLogSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     "La hora de salida debe ser posterior a la hora de entrada."
                 )
+        return data
+
+
+class TaskSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo Task"""
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
+    created_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    
+    class Meta:
+        model = Task
+        fields = [
+            'id', 'title', 'description', 'status', 'assigned_to', 'assigned_to_name',
+            'created_by', 'created_by_name', 'created_at', 'completed_at'
+        ]
+        read_only_fields = ['created_at', 'completed_at', 'created_by']
+    
+    def validate_assigned_to(self, value):
+        """Validar que el usuario asignado existe y está activo"""
+        if not value.is_active:
+            raise serializers.ValidationError("No se puede asignar una tarea a un usuario inactivo.")
+        return value
+
+
+class FeedbackSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo Feedback"""
+    resident_name = serializers.CharField(source='resident.get_full_name', read_only=True)
+    resident = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    
+    class Meta:
+        model = Feedback
+        fields = [
+            'id', 'subject', 'message', 'resident', 'resident_name', 
+            'status', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'resident']
+    
+    def validate_subject(self, value):
+        """Validar que el asunto no esté vacío después de quitar espacios"""
+        if not value.strip():
+            raise serializers.ValidationError("El asunto no puede estar vacío.")
+        return value
+    
+    def validate_message(self, value):
+        """Validar que el mensaje tenga contenido útil"""
+        if not value.strip():
+            raise serializers.ValidationError("El mensaje no puede estar vacío.")
+        if len(value.strip()) < 10:
+            raise serializers.ValidationError("El mensaje debe tener al menos 10 caracteres.")
+        return value
+
+
+class PaymentTransactionSerializer(serializers.ModelSerializer):
+    """Serializer para el modelo PaymentTransaction"""
+    resident_name = serializers.CharField(source='resident.get_full_name', read_only=True)
+    fee_description = serializers.CharField(source='financial_fee.description', read_only=True)
+    fee_amount = serializers.DecimalField(source='financial_fee.amount', max_digits=10, decimal_places=2, read_only=True)
+    resident = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    
+    class Meta:
+        model = PaymentTransaction
+        fields = [
+            'id', 'financial_fee', 'fee_description', 'fee_amount', 'resident', 'resident_name',
+            'transaction_id', 'amount', 'status', 'payment_method', 'gateway_response',
+            'created_at', 'processed_at'
+        ]
+        read_only_fields = [
+            'transaction_id', 'gateway_response', 'created_at', 'processed_at', 'resident'
+        ]
+    
+    def validate_amount(self, value):
+        """Validar que el monto sea positivo"""
+        if value <= 0:
+            raise serializers.ValidationError("El monto debe ser mayor a cero.")
+        return value
+    
+    def validate_financial_fee(self, value):
+        """Validar que la cuota financiera esté activa"""
+        if not hasattr(value, 'is_active') or not value.is_active:
+            raise serializers.ValidationError("No se puede procesar pago para una cuota inactiva.")
+        return value
+    
+    def validate(self, data):
+        """Validar coherencia entre financial_fee y amount"""
+        financial_fee = data.get('financial_fee')
+        amount = data.get('amount')
+        
+        if financial_fee and amount:
+            if amount != financial_fee.amount:
+                raise serializers.ValidationError({
+                    'amount': f"El monto debe coincidir con el valor de la cuota: ${financial_fee.amount}"
+                })
         return data

@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal
-from administration.models import Role, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog
+from administration.models import Role, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog, Task, Feedback, PaymentTransaction
 
 User = get_user_model()
 
@@ -546,3 +546,170 @@ class Command(BaseCommand):
         self.stdout.write(
             '  - Registrar salida: POST /api/administration/visitor-logs/{id}/register_exit/'
         )
+        
+        # Crear tareas de ejemplo
+        self.stdout.write('\n--- CREANDO TAREAS DE EJEMPLO ---')
+        tasks_data = [
+            {
+                'title': 'Revisión mensual de aires acondicionados',
+                'description': 'Realizar mantenimiento preventivo de todos los sistemas de aire acondicionado del condominio',
+                'status': 'Pendiente',
+                'assigned_to': User.objects.get(email='carlos.seguridad@email.com'),
+                'created_by': User.objects.get(email='admin@smartcondo.com')
+            },
+            {
+                'title': 'Reparación de puerta del gimnasio',
+                'description': 'La puerta del gimnasio no cierra correctamente, revisar bisagras y cerradura',
+                'status': 'En Progreso',
+                'assigned_to': User.objects.get(email='carlos.seguridad@email.com'),
+                'created_by': User.objects.get(email='juan.perez@email.com')
+            },
+            {
+                'title': 'Instalación de nueva cámara en lobby',
+                'description': 'Instalar cámara de seguridad adicional en el área del lobby principal',
+                'status': 'Completada',
+                'assigned_to': User.objects.get(email='carlos.seguridad@email.com'),
+                'created_by': User.objects.get(email='admin@smartcondo.com'),
+                'completed_at': timezone.now() - timedelta(days=2)
+            },
+            {
+                'title': 'Limpieza de filtros de la piscina',
+                'description': 'Limpieza semanal de filtros y verificación de niveles de cloro',
+                'status': 'Pendiente',
+                'assigned_to': User.objects.get(email='carlos.seguridad@email.com'),
+                'created_by': User.objects.get(email='admin@smartcondo.com')
+            }
+        ]
+        
+        for task_data in tasks_data:
+            task, created = Task.objects.get_or_create(
+                title=task_data['title'],
+                defaults=task_data
+            )
+            if created:
+                self.stdout.write(f'✓ Tarea creada: {task.title}')
+            else:
+                self.stdout.write(f'- Tarea ya existe: {task.title}')
+        
+        # Crear feedback de ejemplo
+        self.stdout.write('\n--- CREANDO FEEDBACK DE EJEMPLO ---')
+        feedback_data = [
+            {
+                'subject': 'Problema con el ascensor',
+                'message': 'El ascensor principal ha estado haciendo ruidos extraños y se detiene de manera irregular entre los pisos 3 y 4.',
+                'resident': User.objects.get(email='juan.perez@email.com'),
+                'status': 'Pendiente'
+            },
+            {
+                'subject': 'Sugerencia para mejora del gimnasio',
+                'message': 'Sería excelente si pudieran agregar más equipos cardiovasculares, especialmente caminadoras, ya que las actuales están muy ocupadas.',
+                'resident': User.objects.get(email='ana.garcia@email.com'),
+                'status': 'En Revisión'
+            },
+            {
+                'subject': 'Ruido en el piso superior',
+                'message': 'Los vecinos del piso de arriba están haciendo mucho ruido durante las noches, especialmente después de las 10 PM.',
+                'resident': User.objects.get(email='juan.perez@email.com'),
+                'status': 'Respondido'
+            },
+            {
+                'subject': 'Agradecimiento por la limpieza',
+                'message': 'Quiero felicitar al equipo de limpieza por el excelente trabajo que han estado haciendo en las áreas comunes.',
+                'resident': User.objects.get(email='ana.garcia@email.com'),
+                'status': 'Cerrado'
+            },
+            {
+                'subject': 'Problema con el estacionamiento',
+                'message': 'Hay vehículos que no tienen permiso ocupando los espacios de visitantes durante todo el día.',
+                'resident': User.objects.get(email='juan.perez@email.com'),
+                'status': 'En Revisión'
+            }
+        ]
+        
+        for feedback_info in feedback_data:
+            feedback, created = Feedback.objects.get_or_create(
+                subject=feedback_info['subject'],
+                resident=feedback_info['resident'],
+                defaults=feedback_info
+            )
+            if created:
+                self.stdout.write(f'✓ Feedback creado: {feedback.subject}')
+            else:
+                self.stdout.write(f'- Feedback ya existe: {feedback.subject}')
+        
+        # Crear transacciones de pago de ejemplo
+        self.stdout.write('\n--- CREANDO TRANSACCIONES DE PAGO DE EJEMPLO ---')
+        
+        # Obtener algunas cuotas financieras para asignar a las transacciones
+        financial_fees = FinancialFee.objects.all()[:3]
+        residents = User.objects.filter(role=resident_role)[:4]
+        
+        payment_data = [
+            {
+                'financial_fee': financial_fees[0],
+                'resident': residents[0],
+                'amount': financial_fees[0].amount,
+                'status': 'Completado',
+                'payment_method': 'Tarjeta de Crédito',
+                'gateway_response': {'payment_id': 'pay_12345', 'status': 'approved'},
+                'processed_at': timezone.now() - timedelta(days=5)
+            },
+            {
+                'financial_fee': financial_fees[1] if len(financial_fees) > 1 else financial_fees[0],
+                'resident': residents[1] if len(residents) > 1 else residents[0],
+                'amount': financial_fees[1].amount if len(financial_fees) > 1 else financial_fees[0].amount,
+                'status': 'Pendiente',
+                'payment_method': '',
+                'gateway_response': {}
+            },
+            {
+                'financial_fee': financial_fees[0],
+                'resident': residents[2] if len(residents) > 2 else residents[0],
+                'amount': financial_fees[0].amount,
+                'status': 'Fallido',
+                'payment_method': 'Transferencia Bancaria',
+                'gateway_response': {'error': 'insufficient_funds', 'status': 'failed'},
+                'processed_at': timezone.now() - timedelta(days=1)
+            },
+            {
+                'financial_fee': financial_fees[2] if len(financial_fees) > 2 else financial_fees[0],
+                'resident': residents[3] if len(residents) > 3 else residents[0],
+                'amount': financial_fees[2].amount if len(financial_fees) > 2 else financial_fees[0].amount,
+                'status': 'Procesando',
+                'payment_method': 'PayPal',
+                'gateway_response': {'payment_id': 'pay_67890', 'status': 'processing'}
+            }
+        ]
+        
+        for payment_info in payment_data:
+            # Crear transacción única por resident y financial_fee con el status específico
+            transaction, created = PaymentTransaction.objects.get_or_create(
+                financial_fee=payment_info['financial_fee'],
+                resident=payment_info['resident'],
+                status=payment_info['status'],
+                defaults=payment_info
+            )
+            if created:
+                self.stdout.write(f'✓ Transacción creada: {transaction.transaction_id} - {transaction.status}')
+            else:
+                self.stdout.write(f'- Transacción ya existe: {transaction.transaction_id}')
+        
+        # Información de nuevos endpoints de Fase 5
+        self.stdout.write('\n=== NUEVOS ENDPOINTS DE FASE 5 ===')
+        self.stdout.write('🔧 GESTIÓN DE TAREAS:')
+        self.stdout.write('  - Listar tareas: GET /api/administration/tasks/')
+        self.stdout.write('  - Crear tarea: POST /api/administration/tasks/')
+        self.stdout.write('  - Mis tareas: /api/administration/tasks/my_tasks/')
+        self.stdout.write('  - Actualizar estado: PATCH /api/administration/tasks/{id}/update_status/')
+        
+        self.stdout.write('\n💬 SISTEMA DE FEEDBACK:')
+        self.stdout.write('  - Listar feedback: GET /api/administration/feedback/')
+        self.stdout.write('  - Crear feedback: POST /api/administration/feedback/')
+        self.stdout.write('  - Mi feedback: /api/administration/feedback/my_feedback/')
+        self.stdout.write('  - Dashboard admin: /api/administration/feedback/admin_dashboard/')
+        
+        self.stdout.write('\n💳 GATEWAY DE PAGOS:')
+        self.stdout.write('  - Listar transacciones: GET /api/administration/payments/')
+        self.stdout.write('  - Iniciar pago: POST /api/administration/payments/initiate_payment/')
+        self.stdout.write('  - Webhook: POST /api/administration/payments/payment_webhook/')
+        self.stdout.write('  - Mis pagos: /api/administration/payments/my_payments/')
