@@ -88,8 +88,13 @@ WSGI_APPLICATION = 'smartcondo_backend.wsgi.application'
 # Configuración de base de datos usando dj-database-url para producción
 DATABASE_URL = config('DATABASE_URL', default=f'postgresql://{config("DB_USER", default="postgres")}:{config("DB_PASSWORD", default="admin123")}@{config("DB_HOST", default="localhost")}:{config("DB_PORT", default="5432")}/{config("DB_NAME", default="SmartCondominiumDB")}')
 
+# smartcondo_backend/settings.py -> REEMPLAZA CON ESTO
+
 DATABASES = {
-    'default': dj_database_url.parse(DATABASE_URL)
+    'default': dj_database_url.parse(
+        DATABASE_URL,
+        conn_health_checks=True,
+    )
 }
 
 
