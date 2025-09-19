@@ -17,12 +17,13 @@ class Role(models.Model):
 
 class User(AbstractUser):
     """Modelo de usuario personalizado que usa email como campo de login"""
+    username = models.CharField(max_length=150, blank=True, null=True)  # Hacer username opcional
     email = models.EmailField(unique=True, verbose_name="Correo electrónico")
     phone_number = models.CharField(max_length=20, blank=True, verbose_name="Número de teléfono")
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Rol")
     
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+    REQUIRED_FIELDS = ['first_name', 'last_name']  # Removido 'username' para evitar conflictos
     
     class Meta:
         verbose_name = "Usuario"
