@@ -16,15 +16,37 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
 
+def api_status(request):
+    """Vista simple para mostrar el estado de la API"""
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Smart Condominium Backend API',
+        'version': '1.0.0',
+        'endpoints': {
+            'admin': '/admin/',
+            'api': '/api/',
+            'auth': '/api/token/',
+            'administration': '/api/administration/'
+        }
+    })
+
 urlpatterns = [
+    # Root endpoint - API status
+    path('', api_status, name='api_status'),
+    path('api/', api_status, name='api_root'),
+    
+    # Admin
     path('admin/', admin.site.urls),
+    
     # API endpoints
     path('api/administration/', include('administration.urls')),
+    
     # JWT Authentication endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

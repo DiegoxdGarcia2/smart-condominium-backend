@@ -27,4 +27,7 @@ router.register(r'payments', PaymentViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    # Rutas específicas para pagos con Stripe
+    path('initiate-payment/', PaymentViewSet.as_view({'post': 'initiate_payment'}), name='initiate_payment'),
+    path('payment-webhook/', PaymentViewSet.as_view({'post': 'payment_webhook'}), name='payment_webhook'),
 ]
