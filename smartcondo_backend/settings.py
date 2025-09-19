@@ -152,8 +152,7 @@ AUTH_USER_MODEL = 'administration.User'
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
-    'administration.backends.EmailAuthenticationBackend',  # Nuestro backend personalizado
-    'django.contrib.auth.backends.ModelBackend',          # Backend por defecto como fallback
+    'django.contrib.auth.backends.ModelBackend',          # Backend por defecto
 ]
 
 # Django REST Framework Configuration
