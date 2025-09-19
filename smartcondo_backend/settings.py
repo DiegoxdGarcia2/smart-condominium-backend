@@ -29,7 +29,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-#hs&jcqv)nsl87h2#6f!t
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default='False') == 'True'
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,*.onrender.com').split(',')
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,*.onrender.com,smart-condominium-backend-fuab.onrender.com').split(',')
 
 
 # Application definition
