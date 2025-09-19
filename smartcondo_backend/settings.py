@@ -151,7 +151,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',  # Temporalmente permitir acceso
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20
@@ -191,14 +191,17 @@ SIMPLE_JWT = {
 }
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3039",
-    "http://127.0.0.1:3039",
-]
-CORS_ALLOW_CREDENTIALS = True
+if DEBUG:
+    # En desarrollo, permitir solo localhost
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3039",
+        "http://127.0.0.1:3039",
+    ]
+else:
+    # En producción, habilitar todas las origins para pruebas y deployment
+    CORS_ALLOW_ALL_ORIGINS = True
 
-# Si necesitas habilitar todas las solicitudes CORS en desarrollo, descomenta:
-# CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
 # Stripe API Keys
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
