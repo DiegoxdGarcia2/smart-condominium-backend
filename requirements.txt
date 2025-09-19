@@ -5,4 +5,8 @@ django-cors-headers==4.3.0
 python-decouple==3.8
 setuptools
 requests
-psycopg2==2.9.9
+psycopg2-binary
+stripe
+gunicorn
+whitenoise
+dj-database-url

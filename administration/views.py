@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django.utils import timezone
+from django.conf import settings
+import stripe
 from .models import Role, User, ResidentialUnit, Announcement, FinancialFee, CommonArea, Reservation, Vehicle, Pet, VisitorLog, Task, Feedback, PaymentTransaction
 from .serializers import (
     RoleSerializer, UserSerializer, ResidentialUnitSerializer, 
@@ -11,6 +13,9 @@ from .serializers import (
     ReservationSerializer, VehicleSerializer, PetSerializer, VisitorLogSerializer,
     TaskSerializer, FeedbackSerializer, PaymentTransactionSerializer
 )
+
+# Configurar Stripe
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -529,7 +534,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def initiate_payment(self, request):
-        """Iniciar un nuevo proceso de pago"""
+        """Iniciar un nuevo proceso de pago con Stripe Checkout"""
         financial_fee_id = request.data.get('financial_fee_id')
         
         if not financial_fee_id:
@@ -559,61 +564,171 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Crear nueva transacción
-        transaction = PaymentTransaction.objects.create(
-            financial_fee=financial_fee,
-            resident=request.user,
-            amount=financial_fee.amount,
-            status='Pendiente'
-        )
-        
-        serializer = self.get_serializer(transaction)
-        return Response({
-            'message': 'Transacción iniciada exitosamente',
-            'transaction': serializer.data
-        }, status=status.HTTP_201_CREATED)
+        try:
+            # Convertir el monto a centavos para Stripe
+            amount_in_cents = int(financial_fee.amount * 100)
+            
+            # Crear sesión de Stripe Checkout
+            session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=[{
+                    'price_data': {
+                        'currency': 'usd',
+                        'product_data': {
+                            'name': financial_fee.description,
+                        },
+                        'unit_amount': amount_in_cents,
+                    },
+                    'quantity': 1,
+                }],
+                mode='payment',
+                success_url=f'{settings.FRONTEND_URL}/payment-success?session_id={{CHECKOUT_SESSION_ID}}',
+                cancel_url=f'{settings.FRONTEND_URL}/payment-cancel',
+                metadata={
+                    'financial_fee_id': str(financial_fee_id),
+                    'resident_id': str(request.user.id),
+                }
+            )
+            
+            # Crear nueva transacción con el session_id de Stripe
+            transaction = PaymentTransaction.objects.create(
+                financial_fee=financial_fee,
+                resident=request.user,
+                amount=financial_fee.amount,
+                status='Pendiente',
+                transaction_id=session.id,
+                gateway_response={'stripe_session_id': session.id}
+            )
+            
+            return Response({
+                'payment_url': session.url,
+                'transaction_id': transaction.transaction_id
+            }, status=status.HTTP_201_CREATED)
+            
+        except stripe.error.StripeError as e:
+            return Response(
+                {'error': f'Error de Stripe: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Error interno: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=False, methods=['post'], permission_classes=[])
     def payment_webhook(self, request):
-        """Webhook para recibir notificaciones del gateway de pago"""
-        transaction_id = request.data.get('transaction_id')
-        new_status = request.data.get('status')
-        gateway_response = request.data.get('gateway_response', {})
+        """Webhook para recibir notificaciones de Stripe"""
+        import json
         
-        if not transaction_id or not new_status:
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
+        
+        if not endpoint_secret:
             return Response(
-                {'error': 'transaction_id y status son requeridos'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'STRIPE_WEBHOOK_SECRET no configurado'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
         try:
-            transaction = PaymentTransaction.objects.get(transaction_id=transaction_id)
-        except PaymentTransaction.DoesNotExist:
-            return Response(
-                {'error': 'Transacción no encontrada'},
-                status=status.HTTP_404_NOT_FOUND
+            # Verificar la firma del webhook
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, endpoint_secret
             )
-        
-        # Validar estados válidos para webhook
-        valid_webhook_statuses = ['Completado', 'Fallido', 'Cancelado']
-        if new_status not in valid_webhook_statuses:
+        except ValueError:
             return Response(
-                {'error': f'Estado inválido para webhook. Válidos: {valid_webhook_statuses}'},
+                {'error': 'Payload inválido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except stripe.error.SignatureVerificationError:
+            return Response(
+                {'error': 'Firma inválida'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Actualizar transacción
-        transaction.status = new_status
-        transaction.gateway_response = gateway_response
-        if new_status in ['Completado', 'Fallido']:
-            transaction.processed_at = timezone.now()
-        transaction.save()
+        # Procesar el evento
+        if event['type'] == 'checkout.session.completed':
+            session = event['data']['object']
+            
+            # Extraer metadata
+            financial_fee_id = session['metadata'].get('financial_fee_id')
+            resident_id = session['metadata'].get('resident_id')
+            
+            if not financial_fee_id or not resident_id:
+                return Response(
+                    {'error': 'Metadata incompleta en la sesión'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                # Buscar la transacción por session_id
+                transaction = PaymentTransaction.objects.get(
+                    transaction_id=session['id']
+                )
+                
+                # Verificar que la FinancialFee existe
+                financial_fee = FinancialFee.objects.get(id=financial_fee_id)
+                
+                # Actualizar transacción
+                transaction.status = 'Completado'
+                transaction.processed_at = timezone.now()
+                transaction.gateway_response = {
+                    'stripe_payment_status': session['payment_status'],
+                    'stripe_payment_intent': session.get('payment_intent'),
+                    'amount_total': session['amount_total']
+                }
+                transaction.save()
+                
+                # Actualizar el estado de la cuota financiera a 'Pagado'
+                financial_fee.status = 'Pagado'
+                financial_fee.save()
+                
+                return Response({
+                    'message': 'Pago procesado exitosamente',
+                    'transaction_id': transaction.transaction_id
+                })
+                
+            except PaymentTransaction.DoesNotExist:
+                return Response(
+                    {'error': 'Transacción no encontrada'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            except FinancialFee.DoesNotExist:
+                return Response(
+                    {'error': 'Cuota financiera no encontrada'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
         
-        return Response({
-            'message': 'Webhook procesado exitosamente',
-            'transaction_id': transaction_id,
-            'new_status': new_status
-        })
+        elif event['type'] == 'checkout.session.expired':
+            session = event['data']['object']
+            
+            try:
+                # Buscar la transacción y marcarla como fallida
+                transaction = PaymentTransaction.objects.get(
+                    transaction_id=session['id']
+                )
+                transaction.status = 'Fallido'
+                transaction.processed_at = timezone.now()
+                transaction.gateway_response = {
+                    'stripe_status': 'session_expired',
+                    'reason': 'Sesión de pago expirada'
+                }
+                transaction.save()
+                
+                return Response({
+                    'message': 'Sesión expirada procesada',
+                    'transaction_id': transaction.transaction_id
+                })
+                
+            except PaymentTransaction.DoesNotExist:
+                return Response(
+                    {'error': 'Transacción no encontrada'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Para otros tipos de eventos, simplemente devolver OK
+        return Response({'message': 'Evento recibido'}, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['get'])
     def my_payments(self, request):
