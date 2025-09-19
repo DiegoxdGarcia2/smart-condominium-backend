@@ -150,6 +150,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'administration.User'
 
+# Authentication Backends
+AUTHENTICATION_BACKENDS = [
+    'administration.backends.EmailAuthenticationBackend',  # Nuestro backend personalizado
+    'django.contrib.auth.backends.ModelBackend',          # Backend por defecto como fallback
+]
+
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -186,7 +192,7 @@ SIMPLE_JWT = {
 
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
-    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    'TOKEN_USER_CLASS': 'administration.User',  # Usar nuestro modelo personalizado
 
     'JTI_CLAIM': 'jti',
 
