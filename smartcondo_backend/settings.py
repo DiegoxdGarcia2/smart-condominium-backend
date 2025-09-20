@@ -217,3 +217,39 @@ CORS_ALLOW_CREDENTIALS = True
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3039')
+
+# Logging: force stacktraces and errors to console so hosting providers (Render)
+# capture full tracebacks in their logs. Temporary for debugging production 500.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[%(asctime)s] %(levelname)s %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # Capture any root-level errors
+        '': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+        },
+    },
+}
+
