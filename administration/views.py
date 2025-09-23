@@ -616,7 +616,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
-    @action(detail=False, methods=['post'], permission_classes=[])
+    @action(detail=False, methods=['post'], authentication_classes=[], permission_classes=[])
     def payment_webhook(self, request):
         """Webhook para recibir notificaciones de Stripe"""
         import json
