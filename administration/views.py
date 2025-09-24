@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+import logging
 from django.db.models import Q
 from django.utils import timezone
 from django.conf import settings
@@ -16,6 +17,7 @@ from .serializers import (
 
 # Configurar Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
+logger = logging.getLogger(__name__)
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -559,6 +561,22 @@ class PaymentViewSet(viewsets.ModelViewSet):
         ).first()
         
         if existing_transaction:
+            # En lugar de devolver un 400, devolver la URL/ID de la sesión existente
+            gw = existing_transaction.gateway_response or {}
+            # Intentar obtener el session id guardado en gateway_response o fallback al transaction_id
+            session_id = gw.get('stripe_session_id') or existing_transaction.transaction_id
+            # Si existe un session_id, construir la URL pública de Stripe y devolverla
+            if session_id:
+                payment_url = getattr(existing_transaction, 'payment_url', None) or f"https://checkout.stripe.com/c/pay/{session_id}"
+                logger.info(f"Existing payment transaction for fee %s user %s -> session_id=%s, url=%s", financial_fee_id, request.user.id, session_id, payment_url)
+                return Response({
+                    'payment_url': payment_url,
+                    'transaction_id': existing_transaction.transaction_id,
+                    'existing': True
+                }, status=status.HTTP_201_CREATED)
+
+            # Si no se puede construir una URL, retornar el error original (logear para debugging)
+            logger.warning("Existing transaction found for fee %s but no session_id/payment_url present; transaction_id=%s", financial_fee_id, existing_transaction.transaction_id)
             return Response(
                 {'error': 'Ya existe una transacción pendiente para esta cuota'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -591,6 +609,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
             
             # Crear nueva transacción con el session_id de Stripe
+            logger.info("Creating new Stripe session for fee %s user %s session.id=%s", financial_fee_id, request.user.id, session.id)
             transaction = PaymentTransaction.objects.create(
                 financial_fee=financial_fee,
                 resident=request.user,
@@ -599,7 +618,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 transaction_id=session.id,
                 gateway_response={'stripe_session_id': session.id}
             )
-            
+            logger.info("Created PaymentTransaction id=%s for fee %s user %s", transaction.id, financial_fee_id, request.user.id)
+
             return Response({
                 'payment_url': session.url,
                 'transaction_id': transaction.transaction_id
