@@ -564,8 +564,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             # En lugar de devolver un 400, devolver la URL/ID de la sesión existente
             gw = existing_transaction.gateway_response or {}
             # Intentar obtener la URL completa guardada en gateway_response
-            payment_url = (gw.get('stripe_session_url') or 
-                          getattr(existing_transaction, 'payment_url', None))
+            payment_url = gw.get('stripe_session_url')
             
             # Si no tenemos la URL completa, intentar recuperarla de Stripe usando session_id
             if not payment_url:
