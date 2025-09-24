@@ -563,12 +563,27 @@ class PaymentViewSet(viewsets.ModelViewSet):
         if existing_transaction:
             # En lugar de devolver un 400, devolver la URL/ID de la sesión existente
             gw = existing_transaction.gateway_response or {}
-            # Intentar obtener el session id guardado en gateway_response o fallback al transaction_id
-            session_id = gw.get('stripe_session_id') or existing_transaction.transaction_id
-            # Si existe un session_id, construir la URL pública de Stripe y devolverla
-            if session_id:
-                payment_url = getattr(existing_transaction, 'payment_url', None) or f"https://checkout.stripe.com/c/pay/{session_id}"
-                logger.info(f"Existing payment transaction for fee %s user %s -> session_id=%s, url=%s", financial_fee_id, request.user.id, session_id, payment_url)
+            # Intentar obtener la URL completa guardada en gateway_response
+            payment_url = (gw.get('stripe_session_url') or 
+                          getattr(existing_transaction, 'payment_url', None))
+            
+            # Si no tenemos la URL completa, intentar recuperarla de Stripe usando session_id
+            if not payment_url:
+                session_id = gw.get('stripe_session_id') or existing_transaction.transaction_id
+                if session_id:
+                    try:
+                        # Recuperar sesión completa de Stripe para obtener la URL correcta
+                        session = stripe.checkout.Session.retrieve(session_id)
+                        payment_url = session.url
+                        # Actualizar gateway_response para futuras referencias
+                        gw['stripe_session_url'] = session.url
+                        existing_transaction.gateway_response = gw
+                        existing_transaction.save()
+                    except stripe.error.StripeError as e:
+                        logger.warning("Could not retrieve Stripe session %s: %s", session_id, str(e))
+            
+            if payment_url:
+                logger.info(f"Existing payment transaction for fee %s user %s -> session_id=%s, url=%s", financial_fee_id, request.user.id, gw.get('stripe_session_id'), payment_url)
                 return Response({
                     'payment_url': payment_url,
                     'transaction_id': existing_transaction.transaction_id,
@@ -616,7 +631,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 amount=financial_fee.amount,
                 status='Pendiente',
                 transaction_id=session.id,
-                gateway_response={'stripe_session_id': session.id}
+                gateway_response={
+                    'stripe_session_id': session.id,
+                    'stripe_session_url': session.url  # Guardar la URL completa para reutilizar
+                }
             )
             logger.info("Created PaymentTransaction id=%s for fee %s user %s", transaction.id, financial_fee_id, request.user.id)
 
