@@ -45,9 +45,18 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'cloudinary_storage',
+    'cloudinary',
     # Local apps
     'administration',
 ]
+
+# Cloudinary Storage Configuration
+CLOUDINARY_STORAGE = {
+    'CLOUDINARY_URL': config('CLOUDINARY_URL', default='')
+}
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

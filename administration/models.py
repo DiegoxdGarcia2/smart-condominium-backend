@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from cloudinary.models import CloudinaryField
 from decimal import Decimal
 
 
@@ -287,12 +288,7 @@ class VisitorLog(models.Model):
         blank=True, 
         verbose_name="Observaciones"
     )
-    visitor_photo = models.ImageField(
-        upload_to='visitor_photos/', 
-        null=True, 
-        blank=True, 
-        verbose_name="Foto del Visitante"
-    )
+    visitor_photo = CloudinaryField('Foto del Visitante', null=True, blank=True)
     
     class Meta:
         verbose_name = "Registro de Visitante"
