@@ -1,0 +1,259 @@
+PROMPT PARA GITHUB COPILOT — Corregir e implementar PaymentTab.js y PaymentSuccess
+
+Objetivo
+
+Proveer a GitHub Copilot un prompt completo y listo para ejecutar que:
+- Reescriba o corrija `PaymentTab.js` en el frontend para que el flujo de pago Stripe funcione correctamente en todas las situaciones (nueva sesión, sesión pendiente).
+- Añada o entregue un componente `PaymentSuccess` para confirmar el pago tras el redirect de Stripe.
+- Incluya manejo de errores, mensajes UX, y pruebas manuales/casos de aceptación. Todo en español.
+
+Archivo objetivo (ruta en tu repo frontend)
+
+    d:\ParcialSI2\Parcial1Condominio\smart-condominium-frontend\smart-condominium-frontend\src\components\payments\PaymentTab.js
+
+Si el archivo no existe o tiene otro nombre, Copilot debe crearlo en esa ruta.
+
+Contexto del proyecto
+
+- Frontend: React + Vite + Material UI.
+- Backend: Django REST Framework con SimpleJWT.
+- Stripe: modo de prueba (test keys) en backend; backend crea Checkout Sessions.
+- Endpoints del backend relevantes:
+  - POST /api/token/  -> obtiene JWT (access/refresh)
+  - POST /api/administration/initiate-payment/  -> inicia sesión de Stripe y crea PaymentTransaction
+    - Header requerido: Authorization: Bearer <access>
+    - Body: { financial_fee_id: Number }
+    - Respuestas: 
+      - 201 { payment_url: string, transaction_id: string }
+      - 400 { error: "Ya existe una transacción pendiente para esta cuota" } (cuando ya existe)
+      - 401 cuando falta/expira token
+  - GET /api/administration/payments/  -> lista transacciones del usuario (paginado opcional)
+    - Cada item puede contener: transaction_id, gateway_response (con stripe_session_id), status (Pendiente/Procesando/Completado), financial_fee
+  - POST /api/administration/payment-webhook/  -> webhook de Stripe (firma validada en backend)
+
+Requerimiento (qué debe hacer Copilot)
+
+1) Generar/Reescribir `PaymentTab.js` con las siguientes características:
+   - Es un React functional component que acepta props: `financialFeeId` (number|string) y `accessToken` (string). Si la app maneja el token de otra forma, incluir un TODO comentado indicando cómo obtenerlo desde localStorage/Context/Redux.
+   - Cuando el usuario pulsa "Pagar Ahora":
+     a) Deshabilitar el botón y mostrar spinner.
+     b) Enviar POST a `/api/administration/initiate-payment/` con body `{ financial_fee_id: Number(financialFeeId) }` y headers `Content-Type: application/json` y `Authorization: Bearer ${accessToken}`.
+     c) Si la respuesta es 201 y contiene `payment_url`, redirigir el navegador a `payment_url` (window.location.href).
+     d) Si la respuesta es 400 y el mensaje contiene "transacción pendiente" o "pendiente", hacer GET a `/api/administration/payments/` (con Authorization) y buscar la transacción coincidente:
+        - Buscar item con `financial_fee == Number(financialFeeId)` y `status` en ['Pendiente','Procesando'].
+        - Extraer `gateway_response.stripe_session_id` si existe; si no existe, usar `transaction_id` como fallback.
+        - Si se obtiene sessionId -> construir URL: `https://checkout.stripe.com/c/pay/${sessionId}` y redirigir.
+        - Si no se obtiene sessionId -> mostrar mensaje y (opcional) invocar `onOpenPaymentsList()` prop si está presente.
+     e) Manejar 401 mostrando mensaje de "No autorizado" y sugiriendo re-login.
+     f) Manejar otros errores mostrando `err.response.data.error` o `err.response.data.detail` dentro de un `Snackbar/Alert` de MUI.
+   - Incluir validación de entrada: si falta `financialFeeId` mostrar error y no enviar petición.
+   - Manejar paginación en GET /payments/ (si la respuesta es paginada con `results`).
+   - Código claro, comentado y con imports: React, axios, MUI components.
+
+2) Generar `PaymentSuccess.jsx` (o `.js`) para la ruta de éxito configurada en Stripe:
+   - Debe leer `session_id` del query param `?session_id=...`.
+   - Realizar polling (cada 2s, timeout configurable, p. ej. 60s) a GET `/api/administration/payments/` buscando la transacción con `transaction_id === session_id` o `gateway_response.stripe_session_id === session_id`.
+   - Mientras se espera, mostrar spinner y mensaje "Comprobando pago...".
+   - Si encuentra `status === 'Completado'`, mostrar confirmación (Alert success) y detalles mínimos (amount, fecha si disponible).
+   - Si timeout, mostrar advertencia y botón para ir a la lista de pagos.
+   - Manejar errores de red con reintentos cortos.
+
+3) Incluir en ambos componentes:
+   - Uso de `Snackbar` / `Alert` de MUI para mensajes al usuario.
+   - Desactivar botones durante peticiones.
+   - Comentarios TODO sobre dónde obtener `accessToken` si no es prop.
+
+4) Añadir al final del archivo un bloque de comentarios con:
+   - Criterios de aceptación (qué verificar manualmente).
+   - Pasos rápidos de prueba (usar scripts `scripts/test_stripe_prod.py` y `scripts/trigger_webhook_for_pending_tx.py`), además de pasos manuales en navegador.
+
+Códigos sugeridos (copiar exactamente cuando Copilot genere)
+
+PaymentTab.js sugerido (incluir exacto):
+
+```jsx
+import React, { useState } from 'react';
+import axios from 'axios';
+import { Button, CircularProgress, Snackbar, Alert } from '@mui/material';
+
+export default function PaymentTab({ financialFeeId, accessToken, onOpenPaymentsList }) {
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  const API_BASE = '/api/administration';
+
+  const buildStripeUrlFromSession = (sessionId) => {
+    if (!sessionId) return null;
+    return `https://checkout.stripe.com/c/pay/${sessionId}`;
+  };
+
+  const fetchPendingAndRedirect = async () => {
+    try {
+      const headers = { Authorization: `Bearer ${accessToken}` };
+      const r = await axios.get(`${API_BASE}/payments/`, { headers });
+      const data = r.data;
+      const items = Array.isArray(data) ? data : (data.results || []);
+      const candidate = items.find(p => (p.financial_fee === Number(financialFeeId) || String(p.financial_fee) === String(financialFeeId)) && ['Pendiente', 'Procesando'].includes(p.status));
+      if (!candidate) {
+        setMessage({ severity: 'info', text: 'No se encontró la transacción pendiente. Intenta de nuevo.' });
+        return null;
+      }
+      const gw = candidate.gateway_response || {};
+      const sessionId = gw.stripe_session_id || candidate.transaction_id;
+      const url = buildStripeUrlFromSession(sessionId);
+      if (url) {
+        window.location.href = url;
+        return url;
+      } else {
+        setMessage({ severity: 'warning', text: 'Transacción pendiente encontrada pero sin sesión de Stripe.' });
+        if (onOpenPaymentsList) onOpenPaymentsList();
+        return null;
+      }
+    } catch (err) {
+      console.error('Error al buscar transacción pendiente:', err);
+      setMessage({ severity: 'error', text: 'No se pudo consultar transacciones pendientes.' });
+      return null;
+    }
+  };
+
+  const handlePay = async () => {
+    if (!financialFeeId) {
+      setMessage({ severity: 'error', text: 'No se encontró la cuota a pagar.' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const url = `${API_BASE}/initiate-payment/`;
+      const body = { financial_fee_id: Number(financialFeeId) };
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      };
+      const resp = await axios.post(url, body, { headers });
+
+      if ((resp.status === 201 || resp.status === 200) && resp.data?.payment_url) {
+        window.location.href = resp.data.payment_url;
+        return;
+      }
+      setMessage({ severity: 'warning', text: 'Respuesta inesperada del servidor.' });
+    } catch (err) {
+      const resp = err.response;
+      if (resp && resp.status === 400) {
+        const errText = resp.data?.error || resp.data?.detail || JSON.stringify(resp.data);
+        if (typeof errText === 'string' && errText.toLowerCase().includes('transacción pendiente')) {
+          setMessage({ severity: 'info', text: 'Ya existe una transacción pendiente — redirigiendo al checkout existente...' });
+          await fetchPendingAndRedirect();
+        } else {
+          setMessage({ severity: 'error', text: errText });
+        }
+      } else if (resp && resp.status === 401) {
+        setMessage({ severity: 'error', text: 'No autorizado. Por favor inicia sesión nuevamente.' });
+      } else {
+        setMessage({ severity: 'error', text: err.message || 'Error en la petición.' });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <Button variant="contained" color="primary" onClick={handlePay} disabled={loading}>
+        {loading ? <CircularProgress size={20} /> : 'Pagar Ahora'}
+      </Button>
+
+      <Snackbar open={!!message} autoHideDuration={9000} onClose={() => setMessage(null)}>
+        {message && <Alert onClose={() => setMessage(null)} severity={message.severity}>{message.text}</Alert>}
+      </Snackbar>
+    </div>
+  );
+}
+```
+
+PaymentSuccess.jsx sugerido (incluir exacto):
+
+```jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { CircularProgress, Button, Alert } from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+function useQuery() { return new URLSearchParams(useLocation().search); }
+
+export default function PaymentSuccess({ accessToken }) {
+  const q = useQuery();
+  const sessionId = q.get('session_id');
+  const [status, setStatus] = useState('checking');
+  const [message, setMessage] = useState('');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!sessionId) { setStatus('error'); setMessage('No session_id en la URL.'); return; }
+    let mounted = true;
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    const deadline = Date.now() + 60000; // 60s timeout
+
+    const check = async () => {
+      try {
+        const r = await axios.get('/api/administration/payments/', { headers });
+        const data = r.data;
+        const items = Array.isArray(data) ? data : (data.results || []);
+        const tx = items.find(p =>
+          p.transaction_id === sessionId ||
+          (p.gateway_response && (p.gateway_response.stripe_session_id === sessionId || p.gateway_response.session_id === sessionId))
+        );
+        if (tx) {
+          if (tx.status === 'Completado') { if (mounted) setStatus('done'); return; }
+        }
+        if (Date.now() < deadline) { setTimeout(check, 2000); }
+        else { if (mounted) { setStatus('timeout'); setMessage('Aún no se confirmó el pago. Espera y actualiza.'); } }
+      } catch (e) {
+        if (Date.now() < deadline) setTimeout(check, 2000);
+        else if (mounted) { setStatus('error'); setMessage('Error verificando pago.'); }
+      }
+    };
+
+    check();
+    return () => { mounted = false; };
+  }, [sessionId, accessToken]);
+
+  if (status === 'checking') return <div><CircularProgress/> Comprobando pago...</div>;
+  if (status === 'done') return <Alert severity="success">Pago confirmado. ¡Gracias!</Alert>;
+  if (status === 'timeout') return (
+    <div>
+      <Alert severity="warning">{message}</Alert>
+      <Button variant="contained" onClick={() => navigate('/payments')}>Ir a mis pagos</Button>
+    </div>
+  );
+  return <Alert severity="error">{message}</Alert>;
+}
+```
+
+Pruebas automáticas y scripts útiles
+
+- Ejecutar test end-to-end (backend) que ya existe en el repo:
+  - `python .\scripts\test_stripe_prod.py`  — obtiene token, inicia sesión y simula webhook.
+  - `python .\scripts\trigger_webhook_for_pending_tx.py` — busca transacción pendiente y envía webhook firmado.
+
+Criterios de aceptación (para QA)
+
+- Desde el frontend, con usuario autenticado:
+  1) Caso sin transacción previa: pulsar Pagar -> POST a initiate-payment -> 201 + payment_url -> redirige a Stripe.
+  2) Caso con transacción pendiente: pulsar Pagar -> POST da 400 con mensaje de pendiente -> GET /payments/ -> encuentra transacción -> redirige al checkout de la sesión existente.
+  3) Tras completar pago en Stripe (test card 4242 4242 4242 4242): Stripe redirige a success_url -> PaymentSuccess hace polling y detecta `status: Completado` -> muestra confirmación.
+
+Edge-cases a cubrir
+
+- Falta de `accessToken` o token expirado (401) -> mostrar mensaje y no redirigir.
+- `gateway_response` sin `stripe_session_id` -> usar `transaction_id`.
+- Backend que usa otro campo diferente para session id (por ejemplo `session_id`) -> el componente debe intentar varias posibles claves; si sigue fallando, el desarrollador debe pegar aquí el JSON del 400 y del GET /payments/ para adaptar.
+
+Notas finales para Copilot
+
+- No modificar el backend.
+- Mantener la interfaz y hooks simples y documentados.
+- Incluir comentarios TODO para adaptar rutas si el proyecto usa prefijos diferentes.
+
+-----
+
+FIN DEL PROMPT. Pegue este archivo en la interfaz de Copilot o copia su contenido para generar/actualizar los componentes solicitados.

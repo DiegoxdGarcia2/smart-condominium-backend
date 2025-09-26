@@ -1,3 +1,34 @@
+# Documentación
+docs/
+*.md
+
+# Postman y scripts de prueba
+postman/
+scripts/
+
+# Archivos de test
+test_*.py
+test_full_api.py
+test_production.py
+test_smoke.py
+
+# Archivos de entorno y sistema
+.env
+*.env
+__pycache__/
+*.pyc
+*.pyo
+*.sqlite3
+
+# Modelos de ML (si no quieres subirlos)
+# risk_model.joblib
+
+# Stripe keys y secretos
+stripe_*
+
+# Otros
+.DS_Store
+Thumbs.db
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -10,3 +10,7 @@ stripe
 gunicorn
 whitenoise
 dj-database-url
+Pillow==11.3.0
+scikit-learn==1.7.2
+joblib==1.3.2
+pandas==2.3.2

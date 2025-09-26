@@ -287,6 +287,12 @@ class VisitorLog(models.Model):
         blank=True, 
         verbose_name="Observaciones"
     )
+    visitor_photo = models.ImageField(
+        upload_to='visitor_photos/', 
+        null=True, 
+        blank=True, 
+        verbose_name="Foto del Visitante"
+    )
     
     class Meta:
         verbose_name = "Registro de Visitante"

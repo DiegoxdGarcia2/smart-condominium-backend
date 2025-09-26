@@ -793,3 +793,191 @@ class PaymentViewSet(viewsets.ModelViewSet):
             },
             'transactions': serializer.data
         })
+
+
+class AIViewSet(viewsets.ViewSet):
+    """ViewSet para funcionalidades de Inteligencia Artificial"""
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['post'])
+    def predict_payment_risk(self, request):
+        """
+        Predice el riesgo de morosidad para una cuota financiera específica
+        
+        Parámetros:
+        - financial_fee_id: ID de la cuota financiera a evaluar
+        
+        Retorna:
+        - risk_probability: Probabilidad de riesgo (0.0 a 1.0)
+        - risk_level: Nivel de riesgo (Low, Medium, High)
+        - features_used: Características utilizadas en la predicción
+        """
+        import joblib
+        import pandas as pd
+        import numpy as np
+        import os
+        
+        try:
+            financial_fee_id = request.data.get('financial_fee_id')
+            
+            if not financial_fee_id:
+                return Response(
+                    {'error': 'financial_fee_id es requerido'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Verificar que la cuota existe
+            try:
+                financial_fee = FinancialFee.objects.select_related('unit', 'unit__owner').get(
+                    id=financial_fee_id
+                )
+            except FinancialFee.DoesNotExist:
+                return Response(
+                    {'error': 'Cuota financiera no encontrada'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Cargar el modelo entrenado
+            model_path = os.path.join(settings.BASE_DIR, 'risk_model.joblib')
+            
+            if not os.path.exists(model_path):
+                return Response(
+                    {
+                        'error': 'Modelo no encontrado. Ejecuta: python manage.py train_risk_model',
+                        'suggestion': 'El modelo de IA necesita ser entrenado antes de hacer predicciones'
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            
+            # Cargar modelo y scaler
+            model_data = joblib.load(model_path)
+            model = model_data['model']
+            scaler = model_data['scaler']
+            feature_names = model_data['feature_names']
+            
+            # Extraer características para la cuota específica
+            if not financial_fee.unit or not financial_fee.unit.owner:
+                return Response(
+                    {'error': 'La cuota debe tener una unidad y propietario asociado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            owner = financial_fee.unit.owner
+            
+            # Contar pagos anteriores vencidos del mismo residente
+            previous_overdue = FinancialFee.objects.filter(
+                unit__owner=owner,
+                status='Vencido',
+                created_at__lt=financial_fee.created_at
+            ).count()
+            
+            # Contar total de pagos anteriores
+            previous_total = FinancialFee.objects.filter(
+                unit__owner=owner,
+                created_at__lt=financial_fee.created_at
+            ).count()
+            
+            # Calcular tasa de morosidad histórica
+            historical_default_rate = previous_overdue / max(previous_total, 1)
+            
+            # Días desde la fecha de vencimiento
+            days_since_due = (timezone.now().date() - financial_fee.due_date).days if financial_fee.due_date else 0
+            days_since_due = max(0, days_since_due)  # No valores negativos
+            
+            # Crear array de características
+            features = np.array([[
+                float(financial_fee.amount),
+                historical_default_rate,
+                previous_overdue,
+                days_since_due
+            ]])
+            
+            # Escalar las características
+            features_scaled = scaler.transform(features)
+            
+            # Hacer la predicción
+            risk_probability = model.predict_proba(features_scaled)[0][1]  # Probabilidad de clase positiva
+            
+            # Determinar nivel de riesgo
+            if risk_probability < 0.3:
+                risk_level = 'Low'
+                risk_description = 'Bajo riesgo de morosidad'
+            elif risk_probability < 0.7:
+                risk_level = 'Medium'
+                risk_description = 'Riesgo moderado de morosidad'
+            else:
+                risk_level = 'High'
+                risk_description = 'Alto riesgo de morosidad'
+            
+            # Información adicional sobre las características
+            feature_info = {
+                'amount': float(financial_fee.amount),
+                'historical_default_rate': round(historical_default_rate, 3),
+                'previous_overdue_count': previous_overdue,
+                'days_since_due': days_since_due,
+                'total_previous_payments': previous_total
+            }
+            
+            logger.info(
+                f"AI Prediction for fee {financial_fee_id}: "
+                f"risk={risk_probability:.3f}, level={risk_level}, user={owner.email}"
+            )
+            
+            return Response({
+                'risk_probability': round(risk_probability, 4),
+                'risk_level': risk_level,
+                'risk_description': risk_description,
+                'financial_fee': {
+                    'id': financial_fee.id,
+                    'description': financial_fee.description,
+                    'amount': financial_fee.amount,
+                    'due_date': financial_fee.due_date,
+                    'status': financial_fee.status,
+                    'owner_name': owner.get_full_name()
+                },
+                'features_used': feature_info,
+                'model_info': {
+                    'trained_at': model_data.get('trained_at'),
+                    'model_accuracy': model_data.get('test_score', 0)
+                },
+                'recommendations': self._get_risk_recommendations(risk_level, feature_info)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in AI prediction: {str(e)}")
+            return Response(
+                {'error': f'Error interno en la predicción: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _get_risk_recommendations(self, risk_level, features):
+        """Generar recomendaciones basadas en el nivel de riesgo"""
+        recommendations = []
+        
+        if risk_level == 'High':
+            recommendations.extend([
+                'Contactar al residente inmediatamente',
+                'Ofrecer plan de pagos fraccionado',
+                'Considerar descuentos por pronto pago'
+            ])
+            
+            if features['days_since_due'] > 30:
+                recommendations.append('Iniciar proceso de cobranza formal')
+                
+        elif risk_level == 'Medium':
+            recommendations.extend([
+                'Enviar recordatorio de pago',
+                'Ofrecer facilidades de pago',
+                'Programar seguimiento en una semana'
+            ])
+            
+        else:  # Low risk
+            recommendations.extend([
+                'Mantener seguimiento regular',
+                'Enviar recordatorio preventivo antes del vencimiento'
+            ])
+        
+        if features['historical_default_rate'] > 0.3:
+            recommendations.append('Revisar historial crediticio del residente')
+            
+        return recommendations

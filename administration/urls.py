@@ -4,7 +4,7 @@ from .views import (
     RoleViewSet, UserViewSet, ResidentialUnitViewSet, 
     AnnouncementViewSet, FinancialFeeViewSet, CommonAreaViewSet, 
     ReservationViewSet, VehicleViewSet, PetViewSet, VisitorLogViewSet,
-    TaskViewSet, FeedbackViewSet, PaymentViewSet
+    TaskViewSet, FeedbackViewSet, PaymentViewSet, AIViewSet
 )
 
 # Crear el router y registrar nuestros viewsets
@@ -24,6 +24,7 @@ router.register(r'visitor-logs', VisitorLogViewSet)
 router.register(r'tasks', TaskViewSet)
 router.register(r'feedback', FeedbackViewSet)
 router.register(r'payments', PaymentViewSet)
+router.register(r'ai', AIViewSet, basename='ai')
 
 urlpatterns = [
     path('', include(router.urls)),

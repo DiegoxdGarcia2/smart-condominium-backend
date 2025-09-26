@@ -174,7 +174,7 @@ class VisitorLogSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'visitor_name', 'visitor_dni', 'resident', 'resident_name', 
             'resident_email', 'unit_number', 'entry_time', 'exit_time', 
-            'vehicle_license_plate', 'status', 'observations', 'duration_minutes'
+            'vehicle_license_plate', 'status', 'observations', 'visitor_photo', 'duration_minutes'
         ]
         read_only_fields = ['entry_time', 'status']
     

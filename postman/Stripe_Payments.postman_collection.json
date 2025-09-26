@@ -1,0 +1,185 @@
+{
+  "info": {
+    "name": "SmartCondominium - Stripe Payments (Sandbox)",
+    "_postman_id": "b2f7d8c8-0000-4000-8000-000000000001",
+    "description": "Colección para probar la pasarela de pagos (Stripe) en modo sandbox/test. Incluye login, iniciar pago y webhook firmado (pre-request calcula Stripe-Signature).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth - Obtener JWT (POST /api/token/)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/token/", "host": ["{{base_url}}"], "path": ["api","token",""] }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  var json = pm.response.json();",
+              "  pm.environment.set('access_token', json.access);",
+              "  pm.environment.set('refresh_token', json.refresh);",
+              "  console.log('Access token guardado en environment');",
+              "} else {",
+              "  console.log('Login failed', pm.response.text());",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Initiate Payment (hyphen) - POST /api/administration/initiate-payment/",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"financial_fee_id\": {{financial_fee_id}}\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/administration/initiate-payment/", "host": ["{{base_url}}"], "path": ["api","administration","initiate-payment",""] }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "  var json = pm.response.json();",
+              "  if (json.payment_url) pm.environment.set('payment_url', json.payment_url);",
+              "  if (json.transaction_id) pm.environment.set('transaction_id', json.transaction_id);",
+              "  console.log('payment_url:', json.payment_url);",
+              "} else {",
+              "  console.log('Initiate payment failed', pm.response.text());",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Initiate Payment (router) - POST /api/administration/payments/initiate_payment/",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"financial_fee_id\": {{financial_fee_id}}\n}"
+        },
+        "url": { "raw": "{{base_url}}/api/administration/payments/initiate_payment/", "host": ["{{base_url}}"], "path": ["api","administration","payments","initiate_payment",""] }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "  var json = pm.response.json();",
+              "  if (json.payment_url) pm.environment.set('payment_url', json.payment_url);",
+              "  if (json.transaction_id) pm.environment.set('transaction_id', json.transaction_id);",
+              "  console.log('payment_url:', json.payment_url);",
+              "} else {",
+              "  console.log('Initiate payment failed', pm.response.text());",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get My Payments - GET /api/administration/payments/",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": { "raw": "{{base_url}}/api/administration/payments/", "host": ["{{base_url}}"], "path": ["api","administration","payments",""] }
+      },
+      "response": []
+    },
+    {
+      "name": "Payment Webhook (signed) - POST /api/administration/payment-webhook/",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Stripe-Signature", "value": "{{stripe_sig_header}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{{webhook_payload}}"
+        },
+        "url": { "raw": "{{base_url}}/api/administration/payment-webhook/", "host": ["{{base_url}}"], "path": ["api","administration","payment-webhook",""] }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Construir payload dinámico y calcular Stripe-Signature usando el STRIPE webhook secret almacenado en environment",
+              "const feeId = pm.environment.get('financial_fee_id') || '1';",
+              "const residentId = pm.environment.get('resident_id') || '1';",
+              "const amount = parseInt(pm.environment.get('webhook_amount') || '10000');",
+              "const payloadObj = {\n  id: 'evt_test_' + Math.floor(Math.random()*100000),\n  object: 'event',\n  type: 'checkout.session.completed',\n  data: { object: {\n    id: 'cs_test_' + Math.floor(Math.random()*100000),\n    object: 'checkout.session',\n    payment_status: 'paid',\n    payment_intent: 'pi_test_' + Math.floor(Math.random()*100000),\n    amount_total: amount,\n    metadata: { financial_fee_id: String(feeId), resident_id: String(residentId) }\n  }}\n};",
+              "const payload = JSON.stringify(eval('(' + 'payloadObj' + ')'));",
+              "// Nota: construir payload string directamente para asegurar formato consistente",
+              "const constructedPayload = JSON.stringify({ id: 'evt_test_' + Math.floor(Math.random()*100000), object: 'event', type: 'checkout.session.completed', data: { object: { id: 'cs_test_' + Math.floor(Math.random()*100000), object: 'checkout.session', payment_status: 'paid', payment_intent: 'pi_test_' + Math.floor(Math.random()*100000), amount_total: amount, metadata: { financial_fee_id: String(feeId), resident_id: String(residentId) } } } });",
+              "// Obtener secret y calcular firma HMAC SHA256 tal como Stripe lo hace: signature = HMAC_SHA256(secret, `${timestamp}.${payload}`)",
+              "const secret = pm.environment.get('stripe_webhook_secret');",
+              "if (!secret) {",
+              "  console.log('stripe_webhook_secret no configurado en environment');",
+              "} else {",
+              "  const timestamp = Math.floor(Date.now() / 1000);",
+              "  // Usar CryptoJS disponible en Postman sandbox",
+              "  const raw = `${timestamp}.${constructedPayload}`;",
+              "  const signature = CryptoJS.HmacSHA256(raw, secret).toString(CryptoJS.enc.Hex);",
+              "  const header = `t=${timestamp},v1=${signature}`;",
+              "  pm.environment.set('stripe_sig_header', header);",
+              "  pm.environment.set('webhook_payload', constructedPayload);",
+              "  console.log('Stripe-Signature calculado y payload construido');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "console.log('Webhook response status:', pm.response.code);",
+              "try {",
+              "  console.log('Response body:', pm.response.json());",
+              "} catch (e) {",
+              "  console.log('No JSON response');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "response": []
+    }
+  ],
+  "event": []
+}
