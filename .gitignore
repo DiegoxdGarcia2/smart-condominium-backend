@@ -1,16 +1,17 @@
-# Documentación
-docs/
+# Documentación organizada
+Documentación/
 *.md
 
-# Postman y scripts de prueba
-postman/
-scripts/
+# Tests organizados
+Tests/
 
-# Archivos de test
-test_*.py
-test_full_api.py
-test_production.py
-test_smoke.py
+# Scripts misceláneos
+Otros/
+
+# Modelos de ML (opcional subir)
+Machine Learning/
+# risk_model.joblib
+# risk_scaler.joblib
 
 # Archivos de entorno y sistema
 .env

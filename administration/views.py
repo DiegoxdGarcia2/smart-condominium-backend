@@ -838,7 +838,7 @@ class AIViewSet(viewsets.ViewSet):
                 )
             
             # Cargar el modelo entrenado
-            model_path = os.path.join(settings.BASE_DIR, 'risk_model.joblib')
+            model_path = os.path.join(settings.BASE_DIR, 'Machine Learning', 'risk_model.joblib')
             
             if not os.path.exists(model_path):
                 return Response(

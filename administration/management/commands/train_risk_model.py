@@ -176,8 +176,8 @@ class Command(BaseCommand):
             self.stdout.write(f'📈 Precisión en prueba: {test_score:.3f}')
             
             # 7. Guardar el modelo y el scaler
-            model_path = os.path.join(settings.BASE_DIR, 'risk_model.joblib')
-            scaler_path = os.path.join(settings.BASE_DIR, 'risk_scaler.joblib')
+            model_path = os.path.join(settings.BASE_DIR, 'Machine Learning', 'risk_model.joblib')
+            scaler_path = os.path.join(settings.BASE_DIR, 'Machine Learning', 'risk_scaler.joblib')
             
             model_data = {
                 'model': model,
