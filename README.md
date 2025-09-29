@@ -1,4 +1,10 @@
-# Smart Condominium Backend
+# Smart Condomin### 🚀 Fases Implementadas
+
+- **✅ Fase 1:** Gestión de Usuarios, Roles y Unidades Residenciales
+- **✅ Fase 2:** Sistema de Comunicación y Gestión Financiera
+- **✅ Fase 3:** Gestión de Espacios Comunes y Reservas
+- **✅ Fase 4:** Gestión de Vehículos y Mascotas
+- **✅ Fase 5:** Registro de Visitantes con Fotos (Cloudinary) + IA para Predicción de Riesgosnd
 
 🏢 **Sistema de gestión integral para condominios desarrollado con Django REST Framework**
 
@@ -13,6 +19,7 @@
 
 Smart Condominium Backend es una API REST robusta diseñada para la gestión completa de condominios. El sistema permite administrar residentes, unidades, comunicados, finanzas, vehículos, mascotas, reservas y más, de manera eficiente y segura. Incluye funcionalidades avanzadas como IA para predicción de riesgos de morosidad y almacenamiento en la nube para imágenes.
 
+<<<<<<< HEAD
 ### 🚀 Fases Implementadas
 
 - **✅ Fase 1:** Gestión de Usuarios, Roles y Unidades Residenciales
@@ -20,6 +27,8 @@ Smart Condominium Backend es una API REST robusta diseñada para la gestión com
 - **✅ Fase 3:** Gestión de Espacios Comunes y Reservas
 - **✅ Fase 4:** Gestión de Vehículos y Mascotas
 - **✅ Fase 5:** Registro de Visitantes con Fotos (Cloudinary) + IA para Predicción de Riesgos
+=======
+>>>>>>> f5ab39f9ec2a4feecb0fb7e94fcba82b1ca075ac
 
 ## ✨ Características Principales
 
@@ -201,3 +210,7 @@ smartcondo_backend/
     └── management/commands/
         └── train_risk_model.py
 ```
+<<<<<<< HEAD
+=======
+
+>>>>>>> f5ab39f9ec2a4feecb0fb7e94fcba82b1ca075ac
