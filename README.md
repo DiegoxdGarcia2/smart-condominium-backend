@@ -11,10 +11,6 @@
 
 Smart Condominium Backend es una API REST robusta diseñada para la gestión completa de condominios. El sistema permite administrar residentes, unidades, comunicados y finanzas de manera eficiente y segura.
 
-### 🚀 Fases Implementadas
-
-- **✅ Fase 1:** Gestión de Usuarios, Roles y Unidades Residenciales
-- **✅ Fase 2:** Sistema de Comunicación y Gestión Financiera
 
 ## Características
 
@@ -160,10 +156,3 @@ smartcondo_backend/
     └── migrations/
 ```
 
-## Próximos Pasos (Fase 2)
-
-- Implementar sistema de notificaciones
-- Agregar gestión de espacios comunes
-- Sistema de reservas
-- Dashboard analytics
-- Integración con IoT devices
